@@ -19,6 +19,7 @@ jobs:
   - script: |
       brew update
       brew install gcc
+      brew install igraph
     displayName: 'install gcc'
   - script: python -m pip install --upgrade pip setuptools
     displayName: 'Install tools'
@@ -71,6 +72,7 @@ jobs:
       versionSpec: '$(python.version)'
 
   - script: |
+      brew install igraph
       pip install -e .
       pip install wheel twine
     displayName: 'Install dev environment'
