@@ -1,19 +1,100 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
+jobs:
+- job: 'macOS1014'
+  pool:
+    vmImage: 'macOS-10.14'
+  strategy:
+    matrix:
+      Python35:
+        python.version: '3.5'
+      Python36:
+        python.version: '3.6'
+      Python37:
+        python.version: '3.7'
 
-trigger:
-- master
+  steps:
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '$(python.version)'
 
-pool:
-  vmImage: 'ubuntu-latest'
+  - script: |
+      brew update
+      brew install gcc
+    displayName: 'install gcc'
+  - script: python -m pip install --upgrade pip setuptools
+    displayName: 'Install tools'
 
-steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+  - script: |
+      pip install -e .
+      pip install wheel twine
+    displayName: 'Install dev environment'
+    
+  - script: python setup.py sdist bdist_wheel
+    displayName: 'build the wheels'
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+  - script: |
+      pip install dist/*.whl
+      cd /tmp/
+      pytest --cov --pyargs igraph --cov-report xml --ignore-glob='*externals*'
+    displayName: 'install and test the wheels'
+
+  - task: CopyFiles@2
+    displayName: 'copy files'
+    inputs:
+      contents: 'dist/*'
+      targetFolder: '$(Build.ArtifactStagingDirectory)'
+
+  - task: PublishBuildArtifacts@1
+    displayName: 'create download link'
+    inputs:
+      pathToPublish: '$(Build.ArtifactStagingDirectory)'
+      artifactName: 'wheel_and_doc'
+
+
+- job: 'win2016'
+  condition: eq(variables['build_check'], 'true')
+  pool:
+    vmImage: 'vs2017-win2016'
+  strategy:
+    matrix:
+      Python35:
+        python_ver: '35'
+        python.version: '3.5'
+      Python36:
+        python_ver: '36'
+        python.version: '3.6'
+      Python37:
+        python_ver: '37'
+        python.version: '3.7'
+
+  steps:
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '$(python.version)'
+
+  - script: |
+      pip install -e .
+      pip install wheel twine
+    displayName: 'Install dev environment'
+
+  - bash: |
+      sed -i $'s/\r$//' README.rst
+      python setup.py sdist bdist_wheel
+    displayName: 'build the wheels'
+    
+  - bash: |
+      pip install dist/*.whl
+      cd /tmp/
+      pytest --cov --pyargs igraph --cov-report xml --ignore-glob='*externals*'
+    displayName: 'install and test the wheels'
+    
+  - task: CopyFiles@2
+    displayName: 'copy files'
+    inputs:
+      contents: 'dist/*'
+      targetFolder: '$(Build.ArtifactStagingDirectory)'
+
+  - task: PublishBuildArtifacts@1
+    displayName: 'create download link'
+    inputs:
+      pathToPublish: '$(Build.ArtifactStagingDirectory)'
+      artifactName: 'wheel_and_doc'
